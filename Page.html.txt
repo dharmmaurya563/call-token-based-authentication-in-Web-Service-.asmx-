@@ -1,0 +1,57 @@
+<html>
+<head>
+import jquery Library
+</head>
+<body>
+<script>
+ token();
+        fn_AppealList();
+        function fn_AppealList() {
+            var access_token = localStorage.getItem("token");
+            $('#tblAppealList tbody').html('');
+            var userId = $("#hdnMobile").val() == undefined ? $("#hdnUserSession").val() : $("#hdnMobile").val();
+            var _url = GlobalURL + "/Alert";
+            $.ajax({
+                type: "POST",
+                contentType: "application/json; charset=utf-8",
+                data: JSON.stringify({ userId: userId }),
+                url: _url,
+                dataType: "json",
+                beforeSend: function (xhr) {
+                    xhr.setRequestHeader("Authorization", access_token);
+                },
+                success: function (data) {
+                    var jsonData = $.parseJSON(data.d);                   
+                    if (jsonData.Status == 1) {
+                        for (var i = 0 ; i < jsonData.Data.length ; i++) {
+                            data.push([parseInt(i + 1), jsonData.Data[i].CaseNo, jsonData.Data[i].CaseYear, jsonData.Data[i].CourtName, jsonData.Data[i].CaseType, jsonData.Data[i].JudgementData, "<a class='btn btn-danger' onclick='fn_deleteAppeal(" + jsonData.Data[i].AppealId + ")'><i class='fa fa-trash-o'></i></a>"]);
+                        }
+                    }
+                    if (jsonData.Status == 9) {
+                        alert(' session time out');
+                    }                    
+                }
+            });
+        }
+        function token() {
+            var userId = $("#hdnMobile").val() == undefined ? $("#hdnUserSession").val() : $("#hdnMobile").val();
+            var _url = GlobalURL + "/generateToken";
+            var _mobjData = {
+                username: userId
+            };
+
+            $.ajax({
+                type: "POST",
+                contentType: "application/json; charset=utf-8",
+                data: "{_mobjData:" + JSON.stringify(_mobjData) + "}",
+                url: _url,
+                dataType: "json",
+                success: function (data) {
+                    var jsonData = $.parseJSON(data.d);
+                    localStorage.setItem("token", jsonData.token);
+                }
+            });
+        }
+</script>
+</body>
+</html>

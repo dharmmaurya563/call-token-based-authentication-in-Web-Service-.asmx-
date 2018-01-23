@@ -1,0 +1,69 @@
+ [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+        public string Alert(string userId)
+        {
+            var Authorization = HttpContext.Current.Request.Headers["Authorization"];
+            if (!(HttpContext.Current.Session["sessionId"].ToString()== HttpContext.Current.Session.SessionID && Authorization == HttpContext.Current.Session["token"].ToString()))
+            {               
+                return new JavaScriptSerializer().Serialize(new { Status = 9, Data = "", ErrorMessage = "session time out" }).Replace(@"\""", @"""");
+            }
+            string json = string.Empty;
+            dbQuery = new DAL.dbAdvocateEntities();
+            try
+            {
+                var result = dbQuery.AppealAlerts.Where(x => x.IsActive == true && x.CreatedBy == userId)
+                             .Join(dbQuery.tblCourtMasters.Where(c => c.Active == true),
+                              aa => aa.CourtId,
+                cm => cm.CourtID,
+                (aa, cm) => new { AppealAlert = aa, CourtName = cm.CourtName })
+                .Join(dbQuery.tblCaseTypeMasters.Where(m => m.Active == true),
+                aa => aa.AppealAlert.CaseTypeId,
+                ct => ct.CaseTypeID,
+                (aa, ct) => new { AppealAlert = aa.AppealAlert, CourtName = aa.CourtName, CaseType = ct.CaseType }).ToList();
+
+                var data = result.Select(x => new
+                {
+                    AppealId = x.AppealAlert.Id,
+                    CaseNo = x.AppealAlert.CaseNo,
+                    CaseYear = x.AppealAlert.CaseYear,
+                    CourtName = x.CourtName,
+                    CaseType = x.CaseType,
+                    JudgementData = x.AppealAlert.JudgementDate.ToString("dd/MM/yyyy"),
+                    EntryDate = x.AppealAlert.CreatedDate
+                }).Distinct().OrderByDescending(y => y.EntryDate).ToList();
+
+                json = new JavaScriptSerializer().Serialize(new { Status = 1, Data = data }).Replace(@"\""", @"""");
+            }
+            catch (Exception ex)
+            {
+                json = new JavaScriptSerializer().Serialize(new { Status = 0, Data = "", ErrorMessage = "Something went wrong" }).Replace(@"\""", @"""");
+                _ILogger.WriteErrorLog("get Appeal Alert:" + ex.ToString());
+            }
+            return json;
+        }
+
+#region "Authentication"
+        [WebMethod(EnableSession = true)]        
+        [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+        public string generateToken(Encryption _mobjData)
+        {
+           
+            string token = Guid.NewGuid().ToString();
+            HttpRuntime.Cache.Add(token, _mobjData.username, null,
+                                   System.Web.Caching.Cache.NoAbsoluteExpiration,
+                                TimeSpan.FromMinutes(30),
+                            System.Web.Caching.CacheItemPriority.NotRemovable,
+                            null
+                                );
+            var Authorization = HttpContext.Current.Request.Headers["Authorization"];
+            //var Authorization = HttpContext.Current.Request.Headers["Authorization"];
+            var SessionID = HttpContext.Current.Session.SessionID;
+            if (HttpContext.Current.Session["sessionId"]==null || SessionID != HttpContext.Current.Session["sessionId"].ToString())
+            {
+                HttpContext.Current.Session["token"] = token;
+                HttpContext.Current.Session["sessionId"] = SessionID;
+                HttpContext.Current.Session["timeSpan"] = 30;
+                return new JavaScriptSerializer().Serialize(new { Status = 1, token = token }).Replace(@"\""", @"""");
+            }
+            return new JavaScriptSerializer().Serialize(new { Status = 1, token = HttpContext.Current.Session["token"].ToString() }).Replace(@"\""", @""""); 
+        }
+        #endregion
